@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+@theme {
+  --breakpoint-xs: 30rem;
+  --color-brand-50: #fff3ef;
+  --color-brand-100: #ffe4da;
+  --color-brand-400: #ff7d55;
+  --color-brand-500: #ff5a36;
+  --color-brand-600: #eb4620;
+  --color-brand-700: #c53616;
+  --color-ink: #14121a;
+  --color-muted: #6b7280;
+}
+
+/* Custom Component Classes for v4 */
+@layer components {
+  .qb-input {
+    @apply w-full rounded-md border border-slate-200 bg-slate-50/80 py-3 pl-11 pr-4 text-sm text-ink outline-none transition focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-100;
+  }
+
+  .qb-btn-primary {
+    @apply flex w-full items-center justify-center gap-2 rounded-md bg-brand-500 py-3.5 text-sm font-semibold text-white shadow-lg transition hover:bg-brand-600 active:scale-[0.99] disabled:opacity-60;
+  }
+
+  .qb-btn-secondary {
+    @apply flex w-full items-center justify-center gap-2 rounded-md border border-slate-200 bg-slate-50 py-3 text-sm font-semibold text-ink transition hover:bg-slate-100;
+  }
+
+  .qb-card {
+    @apply rounded-xl bg-white shadow-md;
+  }
+}
+/* Poori HTML aur Body par overscroll behavior block kar dein */
+html,
+body {
+  overscroll-behavior: none; /* Yeh bounce/rubber band effect ko rokh deta hai */
+  overflow-x: hidden; /* Left/Right horizontal movement ko lock kar deta hai */
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* Agar aap chahti hain ke body bilkul apni jaga fix rahay aur background move na ho */
+body {
+  position: relative;
+  width: 100%;
+}
