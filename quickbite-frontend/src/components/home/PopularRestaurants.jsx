@@ -155,7 +155,7 @@ const PopularRestaurants = () => {
               return (
                 <Link
                   key={restaurant._id}
-                  to={`/restaurant/${restaurant._id}`}
+                  to={`/restaurants/${restaurant._id}`}
                   className="group w-[320px] shrink-0 snap-start bg-white rounded-3xl overflow-hidden shadow-sm border border-zinc-200/60 hover:-translate-y-2 hover:shadow-2xl transition-all duration-300 flex flex-col cursor-pointer sm:w-[360px] lg:w-[400px]"
                 >
                   {/* Image Container */}

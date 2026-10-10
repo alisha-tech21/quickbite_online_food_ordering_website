@@ -1,17 +1,31 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import toast from "react-hot-toast";
 import {
   getPopularMenuItemsApi,
   getBestSellerMenuItemsApi,
 } from "../../api/menuItemApi";
+import { AuthContext } from "../../context/AuthContext";
+import { CartContext } from "../../context/CartContext";
 
 const PopularDishes = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const { user } = useContext(AuthContext);
+  const {
+    items: cartItems,
+    addItem,
+    updateQuantity,
+    removeItem,
+  } = useContext(CartContext);
+
   const [popularItems, setPopularItems] = useState([]);
   const [bestSellerItems, setBestSellerItems] = useState([]);
-
   const [loading, setLoading] = useState(true);
 
-  const [popularQuantities, setPopularQuantities] = useState({});
-  const [bestSellerQuantities, setBestSellerQuantities] = useState({});
+  // Jis dish par request chal rahi hai (double click se bachao)
+  const [busyId, setBusyId] = useState(null);
 
   useEffect(() => {
     fetchHomeDishes();
@@ -26,38 +40,12 @@ const PopularDishes = () => {
         getBestSellerMenuItemsApi(4),
       ]);
 
-      // =========================
-      // POPULAR DISHES
-      // =========================
       if (popularData?.success) {
-        const popular = popularData.items || [];
-
-        setPopularItems(popular);
-
-        const popularQty = {};
-
-        popular.forEach((item) => {
-          popularQty[item._id] = 0;
-        });
-
-        setPopularQuantities(popularQty);
+        setPopularItems(popularData.items || []);
       }
 
-      // =========================
-      // BEST SELLERS
-      // =========================
       if (bestSellerData?.success) {
-        const bestSellers = bestSellerData.items || [];
-
-        setBestSellerItems(bestSellers);
-
-        const bestSellerQty = {};
-
-        bestSellers.forEach((item) => {
-          bestSellerQty[item._id] = 0;
-        });
-
-        setBestSellerQuantities(bestSellerQty);
+        setBestSellerItems(bestSellerData.items || []);
       }
     } catch (error) {
       console.error("Error fetching home dishes:", error);
@@ -67,37 +55,108 @@ const PopularDishes = () => {
   };
 
   // =========================
-  // POPULAR QUANTITY HANDLERS
+  // CART (asli cart, server ke saath)
   // =========================
-  const handlePopularIncrement = (id) => {
-    setPopularQuantities((prev) => ({
-      ...prev,
-      [id]: (prev[id] || 0) + 1,
-    }));
+
+  // Quantity ab local state se nahi, asli cart se aati hai
+  const getQty = (dishId) =>
+    cartItems.find((c) => c.menuItemId === dishId)?.quantity || 0;
+
+  const getErrorMessage = (err) =>
+    err?.response?.data?.message ||
+    err?.message ||
+    "Something went wrong. Please try again.";
+
+  // Login nahi hai to login page par bhejo (login ke baad wapas yahin)
+  const redirectToLogin = () => {
+    toast("Please login to add items to your cart");
+    navigate("/login", { state: { from: location.pathname } });
   };
 
-  const handlePopularDecrement = (id) => {
-    setPopularQuantities((prev) => ({
-      ...prev,
-      [id]: Math.max(0, (prev[id] || 0) - 1),
-    }));
+  const handleAdd = async (dish) => {
+    if (!user) {
+      redirectToLogin();
+      return;
+    }
+
+    try {
+      setBusyId(dish._id);
+      await addItem({ menuItemId: dish._id, quantity: 1 });
+      toast.success(`${dish.name} added to cart`);
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    } finally {
+      setBusyId(null);
+    }
   };
 
-  // =========================
-  // BEST SELLER QUANTITY HANDLERS
-  // =========================
-  const handleBestSellerIncrement = (id) => {
-    setBestSellerQuantities((prev) => ({
-      ...prev,
-      [id]: (prev[id] || 0) + 1,
-    }));
+  const handleChangeQty = async (dish, newQty) => {
+    if (!user) {
+      redirectToLogin();
+      return;
+    }
+
+    try {
+      setBusyId(dish._id);
+
+      if (newQty <= 0) {
+        await removeItem(dish._id);
+      } else {
+        await updateQuantity(dish._id, Math.min(99, newQty));
+      }
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    } finally {
+      setBusyId(null);
+    }
   };
 
-  const handleBestSellerDecrement = (id) => {
-    setBestSellerQuantities((prev) => ({
-      ...prev,
-      [id]: Math.max(0, (prev[id] || 0) - 1),
-    }));
+  // "+ Add" button ya quantity stepper (dono sections mein same)
+  const renderQuantityControl = (dish) => {
+    const qty = getQty(dish._id);
+    const busy = busyId === dish._id;
+
+    if (qty === 0) {
+      return (
+        <button
+          onClick={() => handleAdd(dish)}
+          disabled={busy}
+          aria-label={`Add ${dish.name} to cart`}
+          className="inline-flex items-center gap-1 bg-[#ea580c] hover:bg-[#c2410c] text-white font-sans text-xs font-bold px-4 py-2 rounded-full shadow-md hover:shadow-lg transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+          type="button"
+        >
+          <span>{busy ? "Adding..." : "+ Add"}</span>
+        </button>
+      );
+    }
+
+    return (
+      <div className="flex items-center bg-orange-50 rounded-full px-1.5 py-1 shadow-sm border border-orange-200">
+        <button
+          onClick={() => handleChangeQty(dish, qty - 1)}
+          disabled={busy}
+          aria-label="Decrease quantity"
+          className="w-6 h-6 rounded-full bg-white text-gray-700 flex items-center justify-center hover:bg-orange-100 transition-colors shadow-xs disabled:opacity-60 disabled:cursor-not-allowed"
+          type="button"
+        >
+          -
+        </button>
+
+        <span className="font-sans text-xs font-extrabold text-orange-900 px-2.5">
+          {qty}
+        </span>
+
+        <button
+          onClick={() => handleChangeQty(dish, qty + 1)}
+          disabled={busy || qty >= 99}
+          aria-label="Increase quantity"
+          className="w-6 h-6 rounded-full bg-[#ea580c] text-white flex items-center justify-center hover:bg-[#c2410c] transition-colors shadow-xs disabled:opacity-60 disabled:cursor-not-allowed"
+          type="button"
+        >
+          +
+        </button>
+      </div>
+    );
   };
 
   // =========================
@@ -186,8 +245,6 @@ const PopularDishes = () => {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {popularItems.map((dish) => {
-                const qty = popularQuantities[dish._id] || 0;
-
                 const restaurantName =
                   dish.restaurant?.name || "Spice House Biryani";
 
@@ -254,41 +311,7 @@ const PopularDishes = () => {
                           Rs. {dish.price?.toLocaleString()}
                         </span>
 
-                        <div>
-                          {qty === 0 ? (
-                            <button
-                              onClick={() => handlePopularIncrement(dish._id)}
-                              className="inline-flex items-center gap-1 bg-[#ea580c] hover:bg-[#c2410c] text-white font-sans text-xs font-bold px-4 py-2 rounded-full shadow-md hover:shadow-lg transition-all active:scale-95"
-                              type="button"
-                            >
-                              <span>+ Add</span>
-                            </button>
-                          ) : (
-                            <div className="flex items-center bg-orange-50 rounded-full px-1.5 py-1 shadow-sm border border-orange-200">
-                              <button
-                                onClick={() => handlePopularDecrement(dish._id)}
-                                aria-label="Decrease quantity"
-                                className="w-6 h-6 rounded-full bg-white text-gray-700 flex items-center justify-center hover:bg-orange-100 transition-colors shadow-xs"
-                                type="button"
-                              >
-                                -
-                              </button>
-
-                              <span className="font-sans text-xs font-extrabold text-orange-900 px-2.5">
-                                {qty}
-                              </span>
-
-                              <button
-                                onClick={() => handlePopularIncrement(dish._id)}
-                                aria-label="Increase quantity"
-                                className="w-6 h-6 rounded-full bg-[#ea580c] text-white flex items-center justify-center hover:bg-[#c2410c] transition-colors shadow-xs"
-                                type="button"
-                              >
-                                +
-                              </button>
-                            </div>
-                          )}
-                        </div>
+                        <div>{renderQuantityControl(dish)}</div>
                       </div>
                     </div>
                   </div>
@@ -351,8 +374,6 @@ const PopularDishes = () => {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {bestSellerItems.map((dish) => {
-                const qty = bestSellerQuantities[dish._id] || 0;
-
                 const restaurantName =
                   dish.restaurant?.name || "Urban Grill & Smokehouse";
 
@@ -423,47 +444,7 @@ const PopularDishes = () => {
                           Rs. {dish.price?.toLocaleString()}
                         </span>
 
-                        <div>
-                          {qty === 0 ? (
-                            <button
-                              onClick={() =>
-                                handleBestSellerIncrement(dish._id)
-                              }
-                              className="inline-flex items-center gap-1 bg-[#ea580c] hover:bg-[#c2410c] text-white font-sans text-xs font-bold px-4 py-2 rounded-full shadow-md hover:shadow-lg transition-all active:scale-95"
-                              type="button"
-                            >
-                              <span>+ Add</span>
-                            </button>
-                          ) : (
-                            <div className="flex items-center bg-orange-50 rounded-full px-1.5 py-1 shadow-sm border border-orange-200">
-                              <button
-                                onClick={() =>
-                                  handleBestSellerDecrement(dish._id)
-                                }
-                                aria-label="Decrease quantity"
-                                className="w-6 h-6 rounded-full bg-white text-gray-700 flex items-center justify-center hover:bg-orange-100 transition-colors shadow-xs"
-                                type="button"
-                              >
-                                -
-                              </button>
-
-                              <span className="font-sans text-xs font-extrabold text-orange-900 px-2.5">
-                                {qty}
-                              </span>
-
-                              <button
-                                onClick={() =>
-                                  handleBestSellerIncrement(dish._id)
-                                }
-                                aria-label="Increase quantity"
-                                className="w-6 h-6 rounded-full bg-[#ea580c] text-white flex items-center justify-center hover:bg-[#c2410c] transition-colors shadow-xs"
-                                type="button"
-                              >
-                                +
-                              </button>
-                            </div>
-                          )}
-                        </div>
+                        <div>{renderQuantityControl(dish)}</div>
                       </div>
                     </div>
                   </div>
